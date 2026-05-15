@@ -1,61 +1,58 @@
 <?php
-// Development-friendly error reporting (remove in production)
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
-/**
- * =============================================
- * STUDENT MANAGEMENT SYSTEM - NETWORK CONFIG
- * =============================================
- * 
- * This file represents the APPLICATION LAYER (Layer 7)
- * The PHP application runs on Web Server (VLAN 50)
- * 
- * Network Details:
- * - Web Server IP: 172.16.1.10/24
- * - Database Server: 172.16.1.20/24 (localhost for single server)
- * - Gateway: 172.16.1.1
- * - DNS Server: 8.8.8.8 (or internal DNS 172.16.1.5)
- * 
- * Communication Flow:
- * Client (PC in VLAN 10/20/30/40) 
- *    → HTTP Request (Port 80)
- *    → Router (Inter-VLAN Routing)
- *    → Web Server (172.16.1.10)
- *    → PHP Execution
- *    → MySQL Query
- *    → JSON Response back to Client
- */
 
-// Database Configuration (local dev)
-define('DB_HOST', 'localhost');  // Use 127.0.0.1 if localhost fails
+define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
-define('DB_NAME', 'student_management');
+define('DB_NAME', 'osi_inspector');
 
-// Application Configuration
-define('APP_NAME', 'Student Management System');
-define('APP_URL', 'http://sms.university.edu');  // DNS will resolve this
+define('APP_NAME', 'OSI Packet Inspector');
+define('APP_VERSION', '2.1');
 
-// Network Detection
-$clientIP = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
-$protocol = $_SERVER['SERVER_PROTOCOL'] ?? 'HTTP/1.1';
-$serverPort = $_SERVER['SERVER_PORT'] ?? 80;
-
-// Create database connection
 try {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    
-    if ($conn->connect_error) {
-        throw new Exception("Database Connection Failed: " . $conn->connect_error);
-    }
-    
-    $conn->set_charset("utf8");
-    
-    // Log connection from which VLAN/Client (for network tracking)
-    error_log("Connection from IP: $clientIP using $protocol on port $serverPort");
-    
+    if ($conn->connect_error) throw new Exception('DB Connection Failed: ' . $conn->connect_error);
+    $conn->set_charset('utf8mb4');
 } catch (Exception $e) {
-    // Show a clear error message for debugging (friendly text)
-    die('Database Connection Failed: ' . $e->getMessage());
+    die('<div style="background:#fef2f2;color:#991b1b;padding:30px;font-family:monospace;border:1px solid #fca5a5;margin:30px;border-radius:8px;">
+            <strong>⚠ Database Error</strong><br><br>'
+            . htmlspecialchars($e->getMessage()) .
+        '<br><br><span style="color:#7f1d1d;">Did you import database.sql AND auth_migration.sql in phpMyAdmin?</span>
+        </div>');
+}
+
+// ─────────────────────────────────────────────
+// Auto-seed default users on first boot
+// ─────────────────────────────────────────────
+seedDefaultUsers($conn);
+
+function seedDefaultUsers($conn) {
+    $r = $conn->query("SELECT COUNT(*) c FROM Users");
+    if (!$r) return; // Users table might not exist yet
+    $count = (int) $r->fetch_assoc()['c'];
+    if ($count > 0) return; // Already seeded
+
+    $defaults = [
+        ['admin', 'admin@osi.local', 'admin123', 'Administrator', 'Admin'],
+        ['demo',  'demo@osi.local',  'demo123',  'Demo User',     'User'],
+    ];
+
+    $stmt = $conn->prepare("INSERT INTO Users (Username, Email, Password, FullName, Role) VALUES (?, ?, ?, ?, ?)");
+    foreach ($defaults as $u) {
+        $hash = password_hash($u[2], PASSWORD_DEFAULT);
+        $stmt->bind_param('sssss', $u[0], $u[1], $hash, $u[3], $u[4]);
+        @$stmt->execute();
+    }
+    $stmt->close();
+}
+
+// ─────────────────────────────────────────────
+// Helper: get the visiting client's IP
+// ─────────────────────────────────────────────
+function getClientIP() {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    if ($ip === '::1') $ip = '127.0.0.1';
+    return $ip;
 }
 ?>
