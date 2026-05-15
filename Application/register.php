@@ -1,146 +1,126 @@
-<?php
-session_start();
-if (isset($_SESSION['user_id'])) { header('Location: index.php'); exit(); }
-include 'config.php';
-?>
+<?php session_start(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Account — OSI Inspector</title>
+    <title>Create Account — Student Management System</title>
     <link rel="stylesheet" href="theme.css">
     <style>
         body {
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            padding: 20px;
-            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
-        }
-        [data-theme="dark"] body {
-            background: linear-gradient(135deg, #0a0a0a 0%, #1e1b4b 100%);
+            padding: 30px 20px;
         }
 
-        .auth-shell {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            max-width: 920px;
-            width: 100%;
-            background: var(--bg-elevated);
-            border-radius: 16px;
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,.15);
-            overflow: hidden;
-            border: 1px solid var(--border);
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: .3;
+            pointer-events: none;
+            z-index: 0;
         }
-        @media (max-width: 800px) {
-            .auth-shell { grid-template-columns: 1fr; }
-            .auth-banner { display: none; }
+        .orb-1 { width: 420px; height: 420px; background: var(--accent2); top: -150px; right: -150px; animation: float 18s ease-in-out infinite; }
+        .orb-2 { width: 380px; height: 380px; background: var(--accent);  bottom: -120px; left: -120px; animation: float 22s ease-in-out infinite reverse; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50%      { transform: translate(-40px, 30px) scale(1.1); }
         }
 
-        .auth-banner {
-            background: linear-gradient(135deg, #10b981, #3b82f6);
-            padding: 50px 40px;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+        .auth-card {
             position: relative;
-            overflow: hidden;
-        }
-        .auth-banner::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background-image:
-                linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
-            background-size: 24px 24px;
+            z-index: 1;
+            background: rgba(13,17,23,.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px 36px;
+            width: 100%;
+            max-width: 460px;
+            box-shadow: 0 30px 80px rgba(0,0,0,.5);
         }
 
-        .banner-logo {
-            display: inline-flex;
+        .auth-brand {
+            display: flex;
             align-items: center;
             gap: 12px;
-            position: relative;
+            margin-bottom: 28px;
         }
-        .banner-logo-icon {
+
+        .auth-brand-icon {
             width: 44px; height: 44px;
-            background: rgba(255,255,255,.15);
-            border-radius: 11px;
-            display: grid;
-            place-items: center;
-            font-size: 22px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            box-shadow: var(--shadow-glow);
         }
-        .banner-logo-text { font-size: 16px; font-weight: 700; }
-        .banner-logo-sub { font-size: 11px; opacity: .8; font-family: var(--mono); }
 
-        .banner-content { position: relative; }
-        .banner-title { font-size: 28px; font-weight: 800; line-height: 1.2; margin-bottom: 14px; letter-spacing: -.5px; }
-        .banner-desc { font-size: 14px; opacity: .9; line-height: 1.6; margin-bottom: 24px; }
+        .auth-brand-name { font-size: 16px; font-weight: 700; }
+        .auth-brand-sub  { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .8px; text-transform: uppercase; }
 
-        .banner-features {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+        .auth-title {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -.5px;
+            margin-bottom: 6px;
         }
-        .banner-features li {
+
+        .auth-sub {
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 24px;
+        }
+
+        .auth-form { display: flex; flex-direction: column; gap: 14px; }
+
+        .auth-form .input,
+        .auth-form .select { padding: 11px 14px; font-size: 13px; }
+
+        .role-hint {
+            font-size: 11px;
+            color: var(--muted);
+            font-family: var(--mono);
+            margin-top: 4px;
+        }
+
+        .submit-btn {
+            margin-top: 8px;
+            padding: 13px;
+            background: linear-gradient(135deg, var(--accent), #00b894);
+            color: var(--bg);
+            border: none;
+            border-radius: 10px;
+            font-family: var(--sans);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .15s;
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 13px;
-            opacity: .95;
-        }
-        .banner-features .check {
-            width: 20px; height: 20px;
-            background: rgba(255,255,255,.2);
-            border-radius: 50%;
-            display: grid;
-            place-items: center;
-            font-size: 10px;
-            font-weight: 700;
-            flex-shrink: 0;
-        }
-
-        .banner-footer { font-size: 11px; font-family: var(--mono); opacity: .7; position: relative; }
-
-        .auth-form-wrap {
-            padding: 40px 44px;
-            display: flex;
-            flex-direction: column;
             justify-content: center;
+            gap: 8px;
         }
 
-        .auth-title { font-size: 22px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 6px; }
-        .auth-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
-
-        .auth-form { display: flex; flex-direction: column; gap: 12px; }
-        .auth-form .input {
-            height: 40px;
-            font-size: 14px;
-            font-family: var(--sans);
-            padding: 0 14px;
-        }
-        .auth-form .btn {
-            height: 44px;
-            font-size: 14px;
-            font-weight: 600;
-            margin-top: 6px;
+        .submit-btn:hover {
+            box-shadow: 0 0 20px rgba(0,212,170,.4);
+            transform: translateY(-1px);
         }
 
         .auth-divider {
             display: flex;
             align-items: center;
             gap: 12px;
-            margin: 20px 0 14px;
+            margin: 22px 0 16px;
             font-size: 11px;
-            color: var(--text-muted);
+            color: var(--muted);
             font-family: var(--mono);
             letter-spacing: 1px;
-            font-weight: 600;
         }
+
         .auth-divider::before, .auth-divider::after {
             content: '';
             flex: 1;
@@ -148,145 +128,93 @@ include 'config.php';
             background: var(--border);
         }
 
-        .auth-link-row { text-align: center; font-size: 13px; color: var(--text-muted); }
+        .auth-link-row {
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
         .auth-link-row a {
-            color: var(--primary);
+            color: var(--accent);
             text-decoration: none;
             font-weight: 600;
             margin-left: 4px;
         }
+
         .auth-link-row a:hover { text-decoration: underline; }
 
-        .alert {
-            padding: 10px 14px;
-            border-radius: var(--radius);
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-        .alert-error { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
-
-        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-        .theme-toggle-corner {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: var(--bg-elevated);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-            width: 36px; height: 36px;
-            border-radius: var(--radius);
-            cursor: pointer;
-            display: grid;
-            place-items: center;
-            box-shadow: var(--shadow);
-            font-size: 16px;
-            z-index: 100;
+        .alert a {
+            color: inherit;
+            font-weight: 700;
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
 
-<button class="theme-toggle-corner" onclick="toggleTheme()">
-    <span id="themeIcon">🌙</span>
-</button>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
 
-<div class="auth-shell">
+<div class="auth-card">
 
-    <div class="auth-banner">
-        <div class="banner-logo">
-            <div class="banner-logo-icon">◍</div>
-            <div>
-                <div class="banner-logo-text">OSI Inspector</div>
-                <div class="banner-logo-sub">v<?php echo APP_VERSION; ?> · pro</div>
-            </div>
+    <div class="auth-brand">
+        <div class="auth-brand-icon">🎓</div>
+        <div>
+            <div class="auth-brand-name">Student Management System</div>
+            <div class="auth-brand-sub">Network Edition</div>
         </div>
-
-        <div class="banner-content">
-            <div class="banner-title">Join the toolkit.</div>
-            <div class="banner-desc">Create a free account to start exploring networking concepts hands-on.</div>
-
-            <ul class="banner-features">
-                <li><span class="check">✓</span> Save your packet captures</li>
-                <li><span class="check">✓</span> Track your quiz progress</li>
-                <li><span class="check">✓</span> Personal dashboard</li>
-                <li><span class="check">✓</span> Free forever</li>
-            </ul>
-        </div>
-
-        <div class="banner-footer">© 2025 · Computer Networks Project</div>
     </div>
 
-    <div class="auth-form-wrap">
-        <div class="auth-title">Create your account</div>
-        <div class="auth-subtitle">Get started with OSI Inspector in seconds</div>
+    <h1 class="auth-title">Create your account</h1>
+    <p class="auth-sub">Get started with the system in seconds</p>
 
-        <?php if (isset($_GET['error'])): ?>
-            <div class="alert alert-error">
-                <span>⊗</span> <?php echo htmlspecialchars($_GET['error']); ?>
-            </div>
-        <?php endif; ?>
-
-        <form method="POST" action="auth.php" class="auth-form">
-            <input type="hidden" name="action" value="register">
-
-            <div class="field">
-                <label class="field-label">Full Name</label>
-                <input type="text" name="fullname" class="input" placeholder="Mohamed Ahmed">
-            </div>
-
-            <div class="row-2">
-                <div class="field">
-                    <label class="field-label">Username *</label>
-                    <input type="text" name="username" class="input" required placeholder="mohamed">
-                </div>
-                <div class="field">
-                    <label class="field-label">Email *</label>
-                    <input type="email" name="email" class="input" required placeholder="me@example.com">
-                </div>
-            </div>
-
-            <div class="row-2">
-                <div class="field">
-                    <label class="field-label">Password *</label>
-                    <input type="password" name="password" class="input" required placeholder="At least 4 chars">
-                </div>
-                <div class="field">
-                    <label class="field-label">Confirm *</label>
-                    <input type="password" name="confirm" class="input" required placeholder="Repeat password">
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Create Account →</button>
-        </form>
-
-        <div class="auth-divider">OR</div>
-
-        <div class="auth-link-row">
-            Already have an account?<a href="login.php">Sign in</a>
+    <?php if(isset($_GET['success'])): ?>
+        <div class="alert alert-success">
+            <span>✓</span> Account created. <a href="login.php">Sign in →</a>
         </div>
+    <?php endif; ?>
+
+    <?php if(isset($_GET['error'])): ?>
+        <div class="alert alert-error">
+            <span>⊗</span> <?php echo htmlspecialchars($_GET['message'] ?? 'Registration failed.'); ?>
+        </div>
+    <?php endif; ?>
+
+    <form method="POST" action="register_action.php" class="auth-form">
+        <div class="field">
+            <label>USERNAME *</label>
+            <input type="text" name="username" class="input" required placeholder="At least 3 characters">
+        </div>
+        <div class="field">
+            <label>PASSWORD *</label>
+            <input type="password" name="password" class="input" required placeholder="At least 4 characters">
+        </div>
+        <div class="field">
+            <label>EMAIL *</label>
+            <input type="email" name="email" class="input" required placeholder="you@university.edu">
+        </div>
+        <div class="field">
+            <label>ROLE *</label>
+            <select name="role" class="select" required>
+                <option value="">Select your role</option>
+                <option value="Student">🎓 Student</option>
+                <option value="Teacher">👨‍🏫 Teacher</option>
+                <option value="Staff">👔 Staff</option>
+            </select>
+            <div class="role-hint">// Admin accounts are created by existing admins only</div>
+        </div>
+        <button type="submit" class="submit-btn">
+            Create Account <span>→</span>
+        </button>
+    </form>
+
+    <div class="auth-divider">OR</div>
+
+    <div class="auth-link-row">
+        Already have an account? <a href="login.php">Sign in →</a>
     </div>
 
 </div>
-
-<script>
-function toggleTheme() {
-    const html = document.documentElement;
-    const cur = html.getAttribute('data-theme');
-    const nxt = cur === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', nxt);
-    localStorage.setItem('osi-theme', nxt);
-    document.getElementById('themeIcon').textContent = nxt === 'dark' ? '☀️' : '🌙';
-}
-(function() {
-    const saved = localStorage.getItem('osi-theme') || 'light';
-    document.documentElement.setAttribute('data-theme', saved);
-    document.getElementById('themeIcon').textContent = saved === 'dark' ? '☀️' : '🌙';
-})();
-</script>
 
 </body>
 </html>

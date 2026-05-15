@@ -1,579 +1,794 @@
 <?php
-include 'auth_check.php';
-include 'config.php';
-$activeTab = 'inspector';
+session_start();
 
-$layers = [];
-$r = $conn->query("SELECT * FROM OSILayers ORDER BY LayerNum DESC");
-while ($row = $r->fetch_assoc()) $layers[] = $row;
+if(!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+include 'config.php';
+
+$currentDate = date('l, F d, Y');
+$userRole    = $_SESSION['role'] ?? 'Guest';
+$username    = $_SESSION['username'] ?? 'Unknown';
+$activeTab   = 'dashboard';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Packet Inspector — OSI Inspector Pro</title>
+    <title>Dashboard — Student Management System</title>
     <link rel="stylesheet" href="theme.css">
     <style>
-        .builder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }
-        .builder-actions { display: flex; gap: 8px; align-items: center; padding-top: 12px; border-top: 1px solid var(--border); }
+        /* tab content panels */
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; animation: fadeUp .35s ease; }
 
-        /* OSI Stack */
-        .osi-section { display: grid; grid-template-columns: 1fr 80px 1fr; gap: 0; align-items: stretch; padding: 18px; }
-        @media (max-width: 1100px) { .osi-section { grid-template-columns: 1fr; gap: 14px; } .osi-channel { display: none; } }
-
-        .osi-side-label {
-            text-align: center;
-            font-size: 11px;
-            color: var(--text-muted);
-            font-family: var(--mono);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            font-weight: 600;
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        .osi-stack { display: flex; flex-direction: column; gap: 5px; }
-
-        .osi-layer {
+        /* Section header */
+        .section-head {
             display: flex;
             align-items: center;
-            gap: 12px;
-            background: var(--bg-elevated);
-            border: 1px solid var(--border);
-            border-left: 4px solid var(--border-strong);
-            border-radius: var(--radius);
-            padding: 11px 14px;
-            transition: all .25s;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
-        .osi-layer.active {
-            background: var(--bg-active);
-            border-color: currentColor;
-            transform: translateX(3px);
-            box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
-        }
-
-        .osi-layer.passed {
-            background: var(--bg-sidebar);
-            opacity: .7;
-        }
-
-        .layer-num {
-            width: 28px; height: 28px;
-            border-radius: 6px;
-            background: var(--bg-sidebar);
-            border: 1px solid currentColor;
-            display: grid;
-            place-items: center;
-            font-family: var(--mono);
-            font-size: 12px;
+        .section-head h2 {
+            font-size: 20px;
             font-weight: 700;
+            letter-spacing: -.3px;
+        }
+
+        .section-head .actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        /* Grade circle */
+        .grade-circle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            font-family: var(--mono);
+            font-weight: 700;
+            font-size: 12px;
+            color: var(--bg);
+        }
+        .grade-a { background: linear-gradient(135deg, #10b981, #059669); }
+        .grade-b { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .grade-c { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .grade-d { background: linear-gradient(135deg, #ec4899, #db2777); }
+        .grade-f { background: linear-gradient(135deg, #ef4444, #dc2626); }
+
+        /* Modal */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.65);
+            backdrop-filter: blur(6px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-backdrop.active { display: flex; }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 28px;
+            width: 100%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalIn .25s ease;
+            box-shadow: 0 30px 80px rgba(0,0,0,.6);
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(20px) scale(.96); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 22px;
+        }
+
+        .modal-head h3 {
+            font-size: 17px;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all .15s;
+        }
+        .close-btn:hover { color: var(--danger); border-color: rgba(239,68,68,.3); }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        .form-grid .field.full { grid-column: 1 / -1; }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 18px;
+            font-size: 13px;
+            font-weight: 500;
+            z-index: 2000;
+            animation: toastIn .3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 360px;
+            box-shadow: 0 12px 32px rgba(0,0,0,.5);
+        }
+        .toast.success { border-color: rgba(16,185,129,.4); color: var(--success); }
+        .toast.error   { border-color: rgba(239,68,68,.4);  color: var(--danger); }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(40px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Quick action grid for dashboard */
+        .quick-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .quick-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: all .15s;
+            cursor: pointer;
+        }
+
+        .quick-card:hover {
+            border-color: var(--accent);
+            background: rgba(0,212,170,.04);
+            transform: translateY(-2px);
+        }
+
+        .quick-icon {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            background: var(--surface2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
             flex-shrink: 0;
         }
 
-        .layer-info { flex: 1; min-width: 0; }
-        .layer-name { font-size: 13px; font-weight: 600; color: var(--text); }
-        .layer-meta { font-size: 11px; color: var(--text-muted); font-family: var(--mono); margin-top: 1px; }
-        .layer-data {
-            font-family: var(--mono);
-            font-size: 11px;
-            color: currentColor;
-            margin-top: 4px;
-            opacity: 0;
-            max-height: 0;
-            overflow: hidden;
-            transition: all .25s;
-            font-weight: 600;
-        }
-        .osi-layer.active .layer-data,
-        .osi-layer.passed .layer-data {
-            opacity: 1;
-            max-height: 60px;
+        .quick-card:hover .quick-icon {
+            background: rgba(0,212,170,.1);
         }
 
-        [data-layer="7"] { color: var(--L7); }
-        [data-layer="6"] { color: var(--L6); }
-        [data-layer="5"] { color: var(--L5); }
-        [data-layer="4"] { color: var(--L4); }
-        [data-layer="3"] { color: var(--L3); }
-        [data-layer="2"] { color: var(--L2); }
-        [data-layer="1"] { color: var(--L1); }
+        .quick-title { font-size: 13px; font-weight: 600; }
+        .quick-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-        .osi-channel {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            margin-top: 24px;
+        @media (max-width: 600px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .modal { padding: 20px; }
         }
-        .channel-line {
-            width: 2px;
-            flex: 1;
-            background: linear-gradient(to bottom, var(--L7), var(--L6), var(--L5), var(--L4), var(--L3), var(--L2), var(--L1));
-            opacity: .25;
-        }
-        .channel-label {
-            writing-mode: vertical-rl;
-            font-size: 10px;
-            font-family: var(--mono);
-            color: var(--text-muted);
-            letter-spacing: 1px;
-            padding: 6px 0;
-            font-weight: 600;
-        }
-
-        .packet-icon {
-            position: absolute;
-            top: 0; left: 50%;
-            transform: translate(-50%, 0);
-            width: 32px; height: 32px;
-            background: linear-gradient(135deg, var(--primary), #8b5cf6);
-            border-radius: 8px;
-            display: grid;
-            place-items: center;
-            font-size: 16px;
-            color: white;
-            box-shadow: 0 4px 14px rgba(59,130,246,.4);
-            transition: all .35s ease;
-            opacity: 0;
-            z-index: 10;
-        }
-        .packet-icon.show { opacity: 1; }
-
-        /* Speed control */
-        .speed-control {
-            display: flex; align-items: center; gap: 8px;
-            font-size: 11px; font-family: var(--mono); color: var(--text-muted); font-weight: 600;
-        }
-        .speed-control input[type="range"] {
-            accent-color: var(--primary);
-            width: 100px;
-        }
-
-        /* Phase indicator */
-        .phase-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-family: var(--mono);
-            font-size: 11px;
-            font-weight: 600;
-            background: var(--bg-hover);
-            color: var(--text-muted);
-        }
-        .phase-indicator.encap { background: var(--L7-bg); color: var(--L7); }
-        .phase-indicator.transmit { background: var(--info-bg); color: var(--info); }
-        .phase-indicator.decap { background: var(--L4-bg); color: var(--L4); }
-        .phase-indicator.done { background: var(--success-bg); color: var(--success); }
-
-        /* Auto-capture toggle */
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 36px; height: 20px;
-        }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            inset: 0;
-            background: var(--border-strong);
-            border-radius: 20px;
-            transition: .2s;
-        }
-        .toggle-slider::before {
-            position: absolute;
-            content: "";
-            height: 14px; width: 14px;
-            left: 3px; top: 3px;
-            background: white;
-            border-radius: 50%;
-            transition: .2s;
-            box-shadow: 0 1px 3px rgba(0,0,0,.2);
-        }
-        .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
-        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
     </style>
 </head>
 <body>
 
-<div class="app-shell">
-    <?php include '_sidebar.php'; ?>
+<?php include '_navbar.php'; ?>
 
-    <main class="main">
-        <div class="topbar">
-            <div>
-                <div class="topbar-title">Packet Inspector</div>
-                <div class="topbar-sub">Real-time OSI layer visualization</div>
+<main class="page">
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="tab-panel active">
+        <div class="page-header">
+            <div class="page-title-group">
+                <div>
+                    <div class="page-title">Welcome back, <?php echo htmlspecialchars($username); ?></div>
+                    <div class="page-sub"><?php echo $currentDate; ?></div>
+                </div>
             </div>
-            <div class="topbar-actions">
-                <span class="status-pill"><span class="status-dot"></span> READY</span>
+            <div class="live-badge">
+                <span class="pulse"></span>
+                SYSTEM ONLINE
             </div>
         </div>
 
-        <div class="content">
-
-            <!-- Stats -->
-            <div class="stats fade-in">
-                <div class="stat">
-                    <div class="stat-label">📦 Total Packets</div>
-                    <div class="stat-value" id="stat-total">—</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">⚡ Last Hour</div>
-                    <div class="stat-value" id="stat-hour">—</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">🌐 Unique IPs</div>
-                    <div class="stat-value" id="stat-ips">—</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">📊 Total Bytes</div>
-                    <div class="stat-value" id="stat-bytes">—</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">⭐ Top Protocol</div>
-                    <div class="stat-value" id="stat-top" style="font-size:18px;">—</div>
-                </div>
+        <!-- Stats -->
+        <div class="stats-grid" id="dashboardStats">
+            <div class="stat fade-in">
+                <div class="stat-icon">🎓</div>
+                <div class="stat-num">—</div>
+                <div class="stat-label">Total Students</div>
             </div>
-
-            <!-- Packet Builder -->
-            <div class="panel fade-in">
-                <div class="panel-head">
-                    <div class="panel-icon">⚡</div>
-                    <div class="panel-title">Build & Send Packet</div>
-                    <span class="panel-tag">SIMULATOR</span>
-                </div>
-                <div class="panel-body">
-                    <div class="builder-grid">
-                        <div class="field">
-                            <label class="field-label">Protocol</label>
-                            <select class="select" id="b-proto">
-                                <option value="HTTP">HTTP (port 80)</option>
-                                <option value="HTTPS">HTTPS (port 443)</option>
-                                <option value="DNS">DNS (port 53)</option>
-                                <option value="FTP">FTP (port 21)</option>
-                                <option value="SSH">SSH (port 22)</option>
-                                <option value="SMTP">SMTP (port 25)</option>
-                                <option value="ICMP">ICMP (Ping)</option>
-                                <option value="POP3">POP3 (port 110)</option>
-                                <option value="IMAP">IMAP (port 143)</option>
-                                <option value="Telnet">Telnet (port 23)</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Method</label>
-                            <select class="select" id="b-method">
-                                <option>GET</option><option>POST</option><option>PUT</option>
-                                <option>DELETE</option><option>QUERY</option><option>ECHO</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Source IP</label>
-                            <input class="input" id="b-src" value="192.168.10.45">
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Destination IP</label>
-                            <input class="input" id="b-dest" value="142.250.190.46">
-                        </div>
-                        <div class="field" style="grid-column:1/-1;">
-                            <label class="field-label">URL Path / Resource</label>
-                            <input class="input" id="b-url" value="/api/users">
-                        </div>
-                    </div>
-
-                    <div class="builder-actions">
-                        <div class="speed-control">
-                            ⏱ SPEED
-                            <input type="range" id="speedRange" min="100" max="800" value="350" step="50">
-                            <span id="speedVal">350ms</span>
-                        </div>
-
-                        <label class="speed-control" style="margin-left:14px;cursor:pointer;">
-                            🔁 AUTO-CAPTURE
-                            <span class="toggle-switch">
-                                <input type="checkbox" id="autoCapture">
-                                <span class="toggle-slider"></span>
-                            </span>
-                        </label>
-
-                        <div style="margin-left:auto;display:flex;gap:8px;">
-                            <button class="btn btn-sm" onclick="generateBatch()">+ Generate 5</button>
-                            <button class="btn" onclick="resetAnimation()">↺ Reset</button>
-                            <button class="btn btn-primary btn-lg" onclick="sendPacket()">▶ Send Packet</button>
-                        </div>
-                    </div>
-                </div>
+            <div class="stat fade-in">
+                <div class="stat-icon">📚</div>
+                <div class="stat-num">—</div>
+                <div class="stat-label">Total Courses</div>
             </div>
-
-            <!-- OSI Visualization -->
-            <div class="panel fade-in">
-                <div class="panel-head">
-                    <div class="panel-icon">📡</div>
-                    <div class="panel-title">OSI Encapsulation & Decapsulation</div>
-                    <span class="phase-indicator" id="phaseLabel">IDLE</span>
-                </div>
-
-                <div class="osi-section">
-                    <!-- SENDER -->
-                    <div>
-                        <div class="osi-side-label">📤 Sender — Encapsulating</div>
-                        <div class="osi-stack" id="senderStack">
-                            <?php foreach ($layers as $L): ?>
-                                <div class="osi-layer" data-layer="<?php echo $L['LayerNum']; ?>" data-side="send" data-num="<?php echo $L['LayerNum']; ?>">
-                                    <div class="layer-num">L<?php echo $L['LayerNum']; ?></div>
-                                    <div class="layer-info">
-                                        <div class="layer-name"><?php echo htmlspecialchars($L['LayerName']); ?></div>
-                                        <div class="layer-meta"><?php echo htmlspecialchars($L['DataUnit']); ?> · <?php echo htmlspecialchars(explode(',', $L['Protocols'])[0]); ?></div>
-                                        <div class="layer-data" id="send-data-<?php echo $L['LayerNum']; ?>">—</div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- CHANNEL -->
-                    <div class="osi-channel">
-                        <div class="channel-line"></div>
-                        <div class="channel-label">PHYSICAL MEDIUM</div>
-                        <div class="channel-line"></div>
-                        <div class="packet-icon" id="packetIcon">📦</div>
-                    </div>
-
-                    <!-- RECEIVER -->
-                    <div>
-                        <div class="osi-side-label">📥 Receiver — Decapsulating</div>
-                        <div class="osi-stack" id="receiverStack">
-                            <?php foreach (array_reverse($layers) as $L): ?>
-                                <div class="osi-layer" data-layer="<?php echo $L['LayerNum']; ?>" data-side="recv" data-num="<?php echo $L['LayerNum']; ?>">
-                                    <div class="layer-num">L<?php echo $L['LayerNum']; ?></div>
-                                    <div class="layer-info">
-                                        <div class="layer-name"><?php echo htmlspecialchars($L['LayerName']); ?></div>
-                                        <div class="layer-meta"><?php echo htmlspecialchars($L['DataUnit']); ?> · <?php echo htmlspecialchars(explode(',', $L['Protocols'])[0]); ?></div>
-                                        <div class="layer-data" id="recv-data-<?php echo $L['LayerNum']; ?>">—</div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
+            <div class="stat fade-in">
+                <div class="stat-icon">📝</div>
+                <div class="stat-num">—</div>
+                <div class="stat-label">Active Enrollments</div>
             </div>
-
-            <!-- Packet preview -->
-            <div class="panel fade-in" id="previewPanel" style="display:none;">
-                <div class="panel-head">
-                    <div class="panel-icon">🔍</div>
-                    <div class="panel-title">Captured Packet</div>
-                    <span class="panel-tag">JUST NOW</span>
-                </div>
-                <div class="panel-body">
-                    <div class="code-block" id="packetPreview"></div>
-                    <div style="margin-top:14px;display:flex;gap:8px;">
-                        <a class="btn btn-primary" id="viewDetailBtn" href="#">🔬 Open Anatomy →</a>
-                        <a class="btn" href="history.php">📋 View History</a>
-                    </div>
-                </div>
+            <div class="stat fade-in">
+                <div class="stat-icon">⭐</div>
+                <div class="stat-num">—</div>
+                <div class="stat-label">Average GPA</div>
             </div>
-
         </div>
-    </main>
+
+        <!-- Quick actions -->
+        <div class="quick-grid">
+            <a class="quick-card" onclick="openTab('students')">
+                <div class="quick-icon">◉</div>
+                <div>
+                    <div class="quick-title">Manage Students</div>
+                    <div class="quick-desc">Add, view, or remove records</div>
+                </div>
+            </a>
+            <a class="quick-card" href="network_map.php">
+                <div class="quick-icon">⌬</div>
+                <div>
+                    <div class="quick-title">Network Map</div>
+                    <div class="quick-desc">Live IP distribution view</div>
+                </div>
+            </a>
+            <a class="quick-card" href="network_topology.php">
+                <div class="quick-icon">⎈</div>
+                <div>
+                    <div class="quick-title">Topology Design</div>
+                    <div class="quick-desc">VLANs, subnets, configs</div>
+                </div>
+            </a>
+            <a class="quick-card" href="readme.php">
+                <div class="quick-icon">※</div>
+                <div>
+                    <div class="quick-title">Documentation</div>
+                    <div class="quick-desc">Project overview & guide</div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Top students -->
+        <div class="card fade-in">
+            <div class="card-header">
+                <span>🏆</span>
+                <h2>Top Students by GPA</h2>
+                <span class="card-tag">LEADERBOARD</span>
+            </div>
+            <div class="table-wrap">
+                <table class="table" id="topStudentsTable">
+                    <thead>
+                        <tr><th>ID</th><th>Name</th><th>Department</th><th>Year</th><th>GPA</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5" class="empty">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- STUDENTS -->
+    <div id="students" class="tab-panel">
+        <div class="card">
+            <div class="section-head">
+                <h2>🎓 Students</h2>
+                <div class="actions">
+                    <input type="text" id="studentSearch" class="input" placeholder="Search students…" style="width:240px;padding:8px 12px;font-size:12px;">
+                    <button class="btn btn-primary" onclick="openModal('addStudentModal')">＋ Add Student</button>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="table" id="studentsTable">
+                    <thead>
+                        <tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Department</th><th>Year</th><th>IP Address</th><th></th></tr>
+                    </thead>
+                    <tbody><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- COURSES -->
+    <div id="courses" class="tab-panel">
+        <div class="card">
+            <div class="section-head">
+                <h2>📚 Courses</h2>
+                <button class="btn btn-primary" onclick="openModal('addCourseModal')">＋ Add Course</button>
+            </div>
+            <div class="table-wrap">
+                <table class="table" id="coursesTable">
+                    <thead>
+                        <tr><th>Code</th><th>Name</th><th>Department</th><th>Credits</th><th>Semester</th><th>Instructor</th><th>Students</th></tr>
+                    </thead>
+                    <tbody><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ENROLLMENTS -->
+    <div id="enrollments" class="tab-panel">
+        <div class="card">
+            <div class="section-head">
+                <h2>📝 Enrollments</h2>
+                <button class="btn btn-primary" onclick="openModal('addEnrollmentModal')">＋ New Enrollment</button>
+            </div>
+            <div class="table-wrap">
+                <table class="table" id="enrollmentsTable">
+                    <thead>
+                        <tr><th>ID</th><th>Student</th><th>Course</th><th>Date</th><th>Status</th><th></th></tr>
+                    </thead>
+                    <tbody><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- GRADES -->
+    <div id="grades" class="tab-panel">
+        <div class="card">
+            <div class="section-head">
+                <h2>🏆 Grades</h2>
+                <button class="btn btn-primary" onclick="openModal('addGradeModal')">＋ Add Grade</button>
+            </div>
+            <div class="table-wrap">
+                <table class="table" id="gradesTable">
+                    <thead>
+                        <tr><th>Student</th><th>Course</th><th>Midterm</th><th>Final</th><th>Assignment</th><th>Total</th><th>Letter</th><th>GPA</th></tr>
+                    </thead>
+                    <tbody><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ATTENDANCE -->
+    <div id="attendance" class="tab-panel">
+        <div class="card">
+            <div class="section-head">
+                <h2>✅ Attendance</h2>
+                <button class="btn btn-primary" onclick="openModal('addAttendanceModal')">＋ Record</button>
+            </div>
+            <div class="table-wrap">
+                <table class="table" id="attendanceTable">
+                    <thead>
+                        <tr><th>ID</th><th>Student</th><th>Course</th><th>Date</th><th>Status</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<!-- ── MODALS ── -->
+
+<div id="addStudentModal" class="modal-backdrop">
+    <div class="modal">
+        <div class="modal-head">
+            <h3>＋ Add New Student</h3>
+            <button class="close-btn" onclick="closeModal('addStudentModal')">✕</button>
+        </div>
+        <form id="addStudentForm">
+            <div class="form-grid">
+                <div class="field full"><label>FULL NAME *</label><input class="input" type="text" name="name" required></div>
+                <div class="field full"><label>EMAIL *</label><input class="input" type="email" name="email" required></div>
+                <div class="field"><label>PHONE</label><input class="input" type="text" name="phone"></div>
+                <div class="field"><label>DEPARTMENT</label><input class="input" type="text" name="department" value="Computer Science"></div>
+                <div class="field"><label>YEAR</label><select class="select" name="year"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+                <div class="field"><label>DATE OF BIRTH</label><input class="input" type="date" name="dob"></div>
+                <div class="field full"><label>ADDRESS</label><textarea class="textarea" name="address" rows="2"></textarea></div>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">💾 Save Student</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('addStudentModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="addCourseModal" class="modal-backdrop">
+    <div class="modal">
+        <div class="modal-head">
+            <h3>＋ Add New Course</h3>
+            <button class="close-btn" onclick="closeModal('addCourseModal')">✕</button>
+        </div>
+        <form id="addCourseForm">
+            <div class="form-grid">
+                <div class="field"><label>CODE *</label><input class="input" type="text" name="code" required></div>
+                <div class="field"><label>NAME *</label><input class="input" type="text" name="name" required></div>
+                <div class="field"><label>DEPARTMENT</label><input class="input" type="text" name="department" value="Computer Science"></div>
+                <div class="field"><label>CREDITS</label><input class="input" type="number" name="credits" value="3"></div>
+                <div class="field"><label>SEMESTER</label><input class="input" type="text" name="semester" placeholder="Fall 2024"></div>
+                <div class="field"><label>INSTRUCTOR</label><input class="input" type="text" name="instructor"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">💾 Save Course</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('addCourseModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="addEnrollmentModal" class="modal-backdrop">
+    <div class="modal">
+        <div class="modal-head">
+            <h3>＋ New Enrollment</h3>
+            <button class="close-btn" onclick="closeModal('addEnrollmentModal')">✕</button>
+        </div>
+        <form id="addEnrollmentForm">
+            <div style="display:flex;flex-direction:column;gap:14px;">
+                <div class="field"><label>STUDENT</label><select class="select" name="student_id" id="enrollmentStudent" required><option value="">Select student</option></select></div>
+                <div class="field"><label>COURSE</label><select class="select" name="course_id" id="enrollmentCourse" required><option value="">Select course</option></select></div>
+                <div class="field"><label>STATUS</label><select class="select" name="status"><option>Active</option><option>Completed</option><option>Withdrawn</option></select></div>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">💾 Enroll</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('addEnrollmentModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="addGradeModal" class="modal-backdrop">
+    <div class="modal">
+        <div class="modal-head">
+            <h3>＋ Add Grade</h3>
+            <button class="close-btn" onclick="closeModal('addGradeModal')">✕</button>
+        </div>
+        <form id="addGradeForm">
+            <div class="field" style="margin-bottom:14px;"><label>ENROLLMENT</label><select class="select" name="enrollment_id" id="gradeEnrollment" required><option value="">Select student – course</option></select></div>
+            <div class="form-grid">
+                <div class="field"><label>MIDTERM</label><input class="input" type="number" name="midterm" step="0.01" min="0" max="100"></div>
+                <div class="field"><label>FINAL</label><input class="input" type="number" name="final" step="0.01" min="0" max="100"></div>
+                <div class="field full"><label>ASSIGNMENT</label><input class="input" type="number" name="assignment" step="0.01" min="0" max="100"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">💾 Save Grade</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('addGradeModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="addAttendanceModal" class="modal-backdrop">
+    <div class="modal">
+        <div class="modal-head">
+            <h3>＋ Record Attendance</h3>
+            <button class="close-btn" onclick="closeModal('addAttendanceModal')">✕</button>
+        </div>
+        <form id="addAttendanceForm">
+            <div class="field" style="margin-bottom:14px;"><label>ENROLLMENT</label><select class="select" name="enrollment_id" id="attendanceEnrollment" required><option value="">Select student – course</option></select></div>
+            <div class="form-grid">
+                <div class="field"><label>DATE</label><input class="input" type="date" name="date" required></div>
+                <div class="field"><label>STATUS</label><select class="select" name="status"><option>Present</option><option>Absent</option><option>Late</option></select></div>
+                <div class="field full"><label>NOTES</label><textarea class="textarea" name="notes" rows="2"></textarea></div>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">💾 Record</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('addAttendanceModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
-const $ = q => document.querySelector(q);
-const $$ = q => document.querySelectorAll(q);
+const userRole = '<?php echo $userRole; ?>';
+const isAdmin  = userRole === 'Admin';
 
-let SPEED = 350;
-let autoCaptureInterval = null;
+/* ── TAB SWITCHING via navbar (delegated) ── */
+function openTab(id) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+    const panel = document.getElementById(id);
+    if (panel) panel.classList.add('active');
+    const btn = document.querySelector(`.nav-tab[href*="#${id}"]`);
+    if (btn) btn.classList.add('active');
 
-$('#speedRange').addEventListener('input', e => {
-    SPEED = +e.target.value;
-    $('#speedVal').textContent = SPEED + 'ms';
-});
-
-$('#autoCapture').addEventListener('change', e => {
-    if (e.target.checked) {
-        autoCaptureInterval = setInterval(() => sendPacket(true), 4000);
-    } else {
-        clearInterval(autoCaptureInterval);
-    }
-});
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function loadStats() {
-    try {
-        const res = await fetch('api.php?action=getStats');
-        const data = await res.json();
-        if (!data.success) return;
-        $('#stat-total').textContent = data.stats.total.toLocaleString();
-        $('#stat-hour').textContent  = data.stats.lastHour.toLocaleString();
-        $('#stat-ips').textContent   = data.stats.uniqueIPs;
-        $('#stat-bytes').textContent = formatBytes(data.stats.totalBytes);
-        $('#stat-top').textContent   = data.stats.topProto;
-    } catch (e) { console.error(e); }
+    if (id === 'dashboard')   loadDashboard();
+    else if (id === 'students')   loadStudents();
+    else if (id === 'courses')    loadCourses();
+    else if (id === 'enrollments'){ loadEnrollments(); loadEnrollmentSelects(); }
+    else if (id === 'grades')     { loadGrades(); loadGradeSelects(); }
+    else if (id === 'attendance') { loadAttendance(); loadAttendanceSelects(); }
 }
 
-function formatBytes(b) {
-    if (b < 1024) return b + ' B';
-    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
-    return (b/1048576).toFixed(2) + ' MB';
-}
-
-loadStats();
-
-function resetAnimation() {
-    $$('.osi-layer').forEach(el => {
-        el.classList.remove('active', 'passed');
-        const num = el.dataset.num, side = el.dataset.side;
-        document.getElementById(`${side}-data-${num}`).textContent = '—';
+document.querySelectorAll('.nav-tab[href^="index.php#"]').forEach(a => {
+    a.addEventListener('click', e => {
+        e.preventDefault();
+        const id = a.getAttribute('href').split('#')[1];
+        history.replaceState(null, '', `#${id}`);
+        openTab(id);
     });
-    $('#packetIcon').classList.remove('show');
-    $('#packetIcon').style.top = '0';
-    $('#previewPanel').style.display = 'none';
-    setPhase('IDLE', '');
+});
+
+window.addEventListener('load', () => {
+    const hash = location.hash.replace('#','');
+    if (hash) openTab(hash); else loadDashboard();
+});
+
+/* ── MODALS ── */
+function openModal(id)  { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
+});
+
+/* ── TOAST ── */
+function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.innerHTML = `<span>${type === 'success' ? '✓' : '⊗'}</span> ${msg}`;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2800);
 }
 
-function setPhase(text, cls) {
-    const el = $('#phaseLabel');
-    el.textContent = text;
-    el.className = 'phase-indicator ' + cls;
+/* ── DATA LOADERS ── */
+function loadDashboard() {
+    fetch('api.php?action=getDashboardStats')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            document.getElementById('dashboardStats').innerHTML = `
+                <div class="stat fade-in"><div class="stat-icon">🎓</div><div class="stat-num">${data.totalStudents}</div><div class="stat-label">Total Students</div></div>
+                <div class="stat fade-in"><div class="stat-icon">📚</div><div class="stat-num">${data.totalCourses}</div><div class="stat-label">Total Courses</div></div>
+                <div class="stat fade-in"><div class="stat-icon">📝</div><div class="stat-num">${data.activeEnrollments}</div><div class="stat-label">Active Enrollments</div></div>
+                <div class="stat fade-in"><div class="stat-icon">⭐</div><div class="stat-num">${data.averageGPA}</div><div class="stat-label">Average GPA</div></div>
+            `;
+        });
+    fetch('api.php?action=getTopStudents')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.students) return;
+            let html = '';
+            data.students.forEach(s => {
+                html += `<tr><td><strong>${s.StudentID}</strong></td><td>${s.Name}</td><td><span class="badge badge-blue">${s.Department}</span></td><td>${s.Year}</td><td><span class="badge badge-accent">${s.GPA}</span></td></tr>`;
+            });
+            document.querySelector('#topStudentsTable tbody').innerHTML = html || '<tr><td colspan="5" class="empty">No data</td></tr>';
+        });
 }
 
-function buildLayerData(p, layer) {
-    switch (layer) {
-        case 7: return `${p.proto} ${p.method} ${p.url}`;
-        case 6: return p.proto === 'HTTPS' ? 'TLS encrypted' : 'plaintext';
-        case 5: return `Session: SID-${Math.floor(Math.random()*9000+1000)}`;
-        case 4: return `${p.transport} ${p.srcPort} → ${p.destPort}`;
-        case 3: return `${p.srcIP} → ${p.destIP} TTL=64`;
-        case 2: return `${p.srcMAC} → ${p.destMAC}`;
-        case 1: return `${p.size}B over copper @ 1Gbps`;
-    }
-    return '—';
+function loadStudents() {
+    fetch('api.php?action=getStudents')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.querySelector('#studentsTable tbody').innerHTML = `<tr><td colspan="8" class="empty">Error: ${data.message || 'Unknown'}</td></tr>`;
+                return;
+            }
+            let html = '';
+            (data.students || []).forEach(s => {
+                html += `<tr>
+                    <td><strong>${s.StudentID}</strong></td>
+                    <td>${s.Name}</td>
+                    <td>${s.Email}</td>
+                    <td>${s.Phone || '—'}</td>
+                    <td><span class="badge badge-blue">${s.Department}</span></td>
+                    <td>${s.Year}</td>
+                    <td>${s.IPAddress ? `<span class="badge badge-accent">${s.IPAddress}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+                    <td>${isAdmin ? `<button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.StudentID})">Delete</button>` : '—'}</td>
+                </tr>`;
+            });
+            document.querySelector('#studentsTable tbody').innerHTML = html || '<tr><td colspan="8" class="empty">No students found</td></tr>';
+        })
+        .catch(err => {
+            document.querySelector('#studentsTable tbody').innerHTML = `<tr><td colspan="8" class="empty">Network error</td></tr>`;
+        });
 }
 
-async function sendPacket(silent = false) {
-    if (!silent) resetAnimation();
-    else { resetAnimation(); }
+document.getElementById('studentSearch')?.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('#studentsTable tbody tr').forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+});
 
-    const proto = $('#b-proto').value;
-    const method = $('#b-method').value;
-    const srcIP = $('#b-src').value;
-    const destIP = $('#b-dest').value;
-    const url = $('#b-url').value;
-
-    const protoMap = {
-        HTTP:  { transport: 'TCP', destPort: 80,  size: 800 },
-        HTTPS: { transport: 'TCP', destPort: 443, size: 900 },
-        DNS:   { transport: 'UDP', destPort: 53,  size: 80 },
-        FTP:   { transport: 'TCP', destPort: 21,  size: 400 },
-        SSH:   { transport: 'TCP', destPort: 22,  size: 200 },
-        SMTP:  { transport: 'TCP', destPort: 25,  size: 600 },
-        ICMP:  { transport: '—',   destPort: 0,   size: 64 },
-        POP3:  { transport: 'TCP', destPort: 110, size: 500 },
-        IMAP:  { transport: 'TCP', destPort: 143, size: 700 },
-        Telnet:{ transport: 'TCP', destPort: 23,  size: 200 }
-    };
-    const cfg = protoMap[proto];
-
-    const packet = {
-        proto, method, url, srcIP, destIP,
-        transport: cfg.transport,
-        srcPort: proto === 'ICMP' ? 0 : Math.floor(Math.random() * 16383 + 49152),
-        destPort: cfg.destPort,
-        size: cfg.size,
-        srcMAC: randMAC(),
-        destMAC: randMAC()
-    };
-
-    /* ENCAPSULATION */
-    setPhase('ENCAPSULATING', 'encap');
-    for (let layer = 7; layer >= 1; layer--) {
-        const el = document.querySelector(`.osi-layer[data-side="send"][data-num="${layer}"]`);
-        el.classList.add('active');
-        document.getElementById(`send-data-${layer}`).textContent = buildLayerData(packet, layer);
-        await sleep(SPEED);
-        el.classList.remove('active');
-        el.classList.add('passed');
-    }
-
-    /* TRANSMISSION */
-    setPhase('TRANSMITTING', 'transmit');
-    $('#packetIcon').classList.add('show');
-    $('#packetIcon').style.top = '0';
-    await sleep(50);
-    $('#packetIcon').style.transition = `top ${SPEED * 1.5}ms ease`;
-    $('#packetIcon').style.top = 'calc(100% - 32px)';
-    await sleep(SPEED * 1.5);
-
-    /* DECAPSULATION */
-    setPhase('DECAPSULATING', 'decap');
-    for (let layer = 1; layer <= 7; layer++) {
-        const el = document.querySelector(`.osi-layer[data-side="recv"][data-num="${layer}"]`);
-        el.classList.add('active');
-        document.getElementById(`recv-data-${layer}`).textContent = buildLayerData(packet, layer);
-        await sleep(SPEED);
-        el.classList.remove('active');
-        el.classList.add('passed');
-    }
-
-    setPhase('DELIVERED ✓', 'done');
-
-    /* SAVE TO DB */
-    const fd = new FormData();
-    fd.append('action', 'capturePacket');
-    fd.append('protocol', proto);
-    fd.append('method', method);
-    fd.append('url', url);
-    fd.append('srcIP', srcIP);
-    fd.append('destIP', destIP);
-
-    try {
-        const res = await fetch('api.php', { method: 'POST', body: fd });
-        const data = await res.json();
-        if (data.success) {
-            $('#previewPanel').style.display = 'block';
-            $('#packetPreview').innerHTML = renderPreview(packet, data.packetID);
-            $('#viewDetailBtn').href = `inspector.php?id=${data.packetID}`;
-            loadStats();
-        }
-    } catch (e) { console.error(e); }
+function deleteStudent(id) {
+    if (!confirm('Delete this student?')) return;
+    fetch('api.php', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: `action=deleteStudent&id=${id}` })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) { showToast('Student deleted'); loadStudents(); }
+            else showToast(data.message, 'error');
+        });
 }
 
-function renderPreview(p, id) {
-    return `<span class="k">┌── Packet #${id} ──────────────────────────┐</span>
-<span class="k">│</span> <span class="L7">[L7 Application]</span>  <span class="v">${p.proto} ${p.method} ${p.url}</span>
-<span class="k">│</span> <span class="L6">[L6 Presentation]</span> <span class="v">${p.proto === 'HTTPS' ? 'TLS 1.3 (encrypted)' : 'plain text'}</span>
-<span class="k">│</span> <span class="L5">[L5 Session]</span>      <span class="v">established</span>
-<span class="k">│</span> <span class="L4">[L4 Transport]</span>    <span class="v">${p.transport} src:${p.srcPort} dst:${p.destPort}</span>
-<span class="k">│</span> <span class="L3">[L3 Network]</span>      <span class="v">${p.srcIP} → ${p.destIP} (TTL=64)</span>
-<span class="k">│</span> <span class="L2">[L2 Data Link]</span>    <span class="v">${p.srcMAC} → ${p.destMAC}</span>
-<span class="k">│</span> <span class="L1">[L1 Physical]</span>     <span class="v">${p.size} bytes over copper</span>
-<span class="k">└─────────────────────────────────────────┘</span>`;
+function loadCourses() {
+    fetch('api.php?action=getCourses').then(r => r.json()).then(data => {
+        if (!data.success) return;
+        let html = '';
+        data.courses.forEach(c => {
+            html += `<tr>
+                <td><span class="badge badge-amber">${c.CourseCode}</span></td>
+                <td><strong>${c.CourseName}</strong></td>
+                <td>${c.Department}</td>
+                <td>${c.Credits}</td>
+                <td>${c.Semester}</td>
+                <td>${c.InstructorName}</td>
+                <td><span class="badge badge-accent">${c.students || 0}</span></td>
+            </tr>`;
+        });
+        document.querySelector('#coursesTable tbody').innerHTML = html || '<tr><td colspan="7" class="empty">No courses</td></tr>';
+    });
 }
 
-async function generateBatch() {
-    const fd = new FormData();
-    fd.append('action', 'autoGenerate');
-    fd.append('count', '5');
-    await fetch('api.php', { method: 'POST', body: fd });
-    loadStats();
+function loadEnrollments() {
+    fetch('api.php?action=getEnrollments').then(r => r.json()).then(data => {
+        if (!data.success) return;
+        let html = '';
+        data.enrollments.forEach(e => {
+            const cls = e.Status === 'Active' ? 'badge-success' : (e.Status === 'Completed' ? 'badge-blue' : 'badge-danger');
+            html += `<tr>
+                <td><strong>${e.EnrollmentID}</strong></td>
+                <td>${e.StudentName}</td>
+                <td>${e.CourseName}</td>
+                <td>${e.EnrollmentDate}</td>
+                <td><span class="badge ${cls}">${e.Status}</span></td>
+                <td>${isAdmin ? `<button class="btn btn-danger btn-sm" onclick="deleteEnrollment(${e.EnrollmentID})">Withdraw</button>` : '—'}</td>
+            </tr>`;
+        });
+        document.querySelector('#enrollmentsTable tbody').innerHTML = html || '<tr><td colspan="6" class="empty">No enrollments</td></tr>';
+    });
 }
 
-function randMAC() {
-    const hex = '0123456789ABCDEF';
-    let mac = '';
-    for (let i = 0; i < 6; i++) {
-        if (i) mac += ':';
-        mac += hex[Math.floor(Math.random()*16)] + hex[Math.floor(Math.random()*16)];
-    }
-    return mac;
+function deleteEnrollment(id) {
+    if (!confirm('Withdraw this enrollment?')) return;
+    fetch('api.php', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: `action=deleteEnrollment&id=${id}` })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) { showToast('Withdrawn'); loadEnrollments(); }
+            else showToast(data.message, 'error');
+        });
 }
+
+function loadEnrollmentSelects() {
+    fetch('api.php?action=getStudentsForSelect').then(r => r.json()).then(data => {
+        if (!data.success) return;
+        document.getElementById('enrollmentStudent').innerHTML =
+            '<option value="">Select student</option>' + data.students.map(s => `<option value="${s.StudentID}">${s.Name}</option>`).join('');
+    });
+    fetch('api.php?action=getCoursesForSelect').then(r => r.json()).then(data => {
+        if (!data.success) return;
+        document.getElementById('enrollmentCourse').innerHTML =
+            '<option value="">Select course</option>' + data.courses.map(c => `<option value="${c.CourseID}">${c.CourseCode} – ${c.CourseName}</option>`).join('');
+    });
+}
+
+function loadGrades() {
+    fetch('api.php?action=getGrades').then(r => r.json()).then(data => {
+        if (!data.success) return;
+        let html = '';
+        data.grades.forEach(g => {
+            let cls = 'grade-a';
+            if (g.LetterGrade?.includes('B')) cls = 'grade-b';
+            else if (g.LetterGrade?.includes('C')) cls = 'grade-c';
+            else if (g.LetterGrade === 'D') cls = 'grade-d';
+            else if (g.LetterGrade === 'F') cls = 'grade-f';
+            html += `<tr>
+                <td><strong>${g.StudentName}</strong></td>
+                <td>${g.CourseName}</td>
+                <td>${g.MidtermGrade ?? '—'}</td>
+                <td>${g.FinalGrade ?? '—'}</td>
+                <td>${g.AssignmentGrade ?? '—'}</td>
+                <td><strong>${g.TotalGrade ?? '—'}</strong></td>
+                <td><span class="grade-circle ${cls}">${g.LetterGrade || 'N/A'}</span></td>
+                <td><span class="badge badge-accent">${g.GPA ?? '—'}</span></td>
+            </tr>`;
+        });
+        document.querySelector('#gradesTable tbody').innerHTML = html || '<tr><td colspan="8" class="empty">No grades</td></tr>';
+    });
+}
+
+function loadGradeSelects() {
+    fetch('api.php?action=getEnrollmentsForSelect').then(r => r.json()).then(data => {
+        if (!data.success) return;
+        document.getElementById('gradeEnrollment').innerHTML =
+            '<option value="">Select student – course</option>' + data.enrollments.map(e => `<option value="${e.EnrollmentID}">${e.label}</option>`).join('');
+    });
+}
+
+function loadAttendance() {
+    fetch('api.php?action=getAttendance').then(r => r.json()).then(data => {
+        if (!data.success) return;
+        let html = '';
+        data.attendance.forEach(a => {
+            const cls = a.Status === 'Present' ? 'badge-success' : (a.Status === 'Absent' ? 'badge-danger' : 'badge-warning');
+            html += `<tr>
+                <td><strong>${a.AttendanceID}</strong></td>
+                <td>${a.StudentName}</td>
+                <td>${a.CourseName}</td>
+                <td>${a.AttendanceDate}</td>
+                <td><span class="badge ${cls}">${a.Status}</span></td>
+                <td>${a.Notes || '—'}</td>
+            </tr>`;
+        });
+        document.querySelector('#attendanceTable tbody').innerHTML = html || '<tr><td colspan="6" class="empty">No records</td></tr>';
+    });
+}
+
+function loadAttendanceSelects() {
+    fetch('api.php?action=getEnrollmentsForSelect').then(r => r.json()).then(data => {
+        if (!data.success) return;
+        document.getElementById('attendanceEnrollment').innerHTML =
+            '<option value="">Select student – course</option>' + data.enrollments.map(e => `<option value="${e.EnrollmentID}">${e.label}</option>`).join('');
+    });
+}
+
+/* ── FORM SUBMISSIONS ── */
+function bindForm(formId, action, modalId, onSuccess) {
+    document.getElementById(formId)?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        fd.append('action', action);
+        fetch('api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Saved successfully');
+                    closeModal(modalId);
+                    this.reset();
+                    onSuccess?.();
+                } else showToast(data.message || 'Failed', 'error');
+            });
+    });
+}
+
+bindForm('addStudentForm',    'addStudent',    'addStudentModal',    () => loadStudents());
+bindForm('addCourseForm',     'addCourse',     'addCourseModal',     () => loadCourses());
+bindForm('addEnrollmentForm', 'addEnrollment', 'addEnrollmentModal', () => { loadEnrollments(); loadGradeSelects(); loadAttendanceSelects(); });
+bindForm('addGradeForm',      'addGrade',      'addGradeModal',      () => { loadGrades(); loadDashboard(); });
+bindForm('addAttendanceForm', 'addAttendance', 'addAttendanceModal', () => loadAttendance());
 </script>
 
 </body>

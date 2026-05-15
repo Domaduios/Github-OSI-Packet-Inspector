@@ -1,166 +1,248 @@
--- ====================================================
---  OSI PACKET INSPECTOR v2.0 — Database Schema
--- ====================================================
+DROP TABLE IF EXISTS Attendance;
+DROP TABLE IF EXISTS Grades;
+DROP TABLE IF EXISTS Enrollments;
+DROP TABLE IF EXISTS Courses;
+DROP TABLE IF EXISTS Students;
+DROP TABLE IF EXISTS Users;
+DROP TABLE IF EXISTS ActivityLog;
 
-CREATE DATABASE IF NOT EXISTS osi_inspector
-    CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-USE osi_inspector;
-
-DROP TABLE IF EXISTS QuizAttempts;
-DROP TABLE IF EXISTS QuizQuestions;
-DROP TABLE IF EXISTS Packets;
-DROP TABLE IF EXISTS Protocols;
-DROP TABLE IF EXISTS OSILayers;
-
--- =========================
--- OSI Layers
--- =========================
-CREATE TABLE OSILayers (
-    LayerNum    INT PRIMARY KEY,
-    LayerName   VARCHAR(50)  NOT NULL,
-    Purpose     VARCHAR(255),
-    DataUnit    VARCHAR(30),
-    Protocols   VARCHAR(255),
-    Devices     VARCHAR(255),
-    Example     TEXT,
-    ColorHex    VARCHAR(10)
+CREATE TABLE Students (
+    StudentID INT PRIMARY KEY AUTO_INCREMENT,
+    Name VARCHAR(100) NOT NULL,
+    Email VARCHAR(100) UNIQUE,
+    Phone VARCHAR(20),
+    Department VARCHAR(50) DEFAULT 'Computer Science',
+    Year INT,
+    DateOfBirth DATE,
+    Address VARCHAR(200),
+    EnrollmentDate DATE DEFAULT CURRENT_DATE,
+    IPAddress VARCHAR(45) DEFAULT NULL
 );
 
-INSERT INTO OSILayers VALUES
-(7, 'Application',  'Provides services directly to user applications and APIs.',
-    'Data',    'HTTP, HTTPS, DNS, FTP, SMTP, SSH',  'Web browser, Web server, Email client',
-    'When you type a URL in the browser, the Application Layer creates an HTTP GET request.', '#ef4444'),
-(6, 'Presentation', 'Translates, encrypts, and compresses data.',
-    'Data',    'SSL/TLS, JPEG, MPEG, ASCII, Unicode', 'Encryption gateways, Codecs',
-    'When you visit an HTTPS site, this layer encrypts the data using TLS.', '#f97316'),
-(5, 'Session',      'Establishes, manages, and terminates communication sessions.',
-    'Data',    'NetBIOS, RPC, PPTP, SOCKS',          'Session-aware firewalls',
-    'When you log into a website, this layer keeps track of your session until you log out.', '#eab308'),
-(4, 'Transport',    'Ensures end-to-end delivery, error recovery, and flow control.',
-    'Segment', 'TCP, UDP, SCTP',                     'Stateful firewalls, Load balancers',
-    'TCP guarantees in-order delivery; UDP is faster but offers no guarantees.', '#22c55e'),
-(3, 'Network',      'Logical addressing and routing between networks.',
-    'Packet',  'IP, ICMP, IPsec, OSPF, BGP, ARP',    'Router, Layer 3 Switch',
-    'The Network Layer decides which path the packet takes to reach 142.250.190.46.', '#06b6d4'),
-(2, 'Data Link',    'Physical addressing using MAC, framing, and error detection.',
-    'Frame',   'Ethernet, PPP, HDLC, Wi-Fi (802.11)','Switch, Bridge, NIC',
-    'This layer wraps the packet in a frame with source/destination MAC addresses.', '#3b82f6'),
-(1, 'Physical',     'Transmits raw bits over the physical medium.',
-    'Bits',    'Ethernet cables, Fiber optic, Radio waves', 'Hub, Repeater, Cables, NIC',
-    'Bits travel as electrical signals (copper), light pulses (fiber), or radio waves.', '#a855f7');
-
--- =========================
--- Protocols cheatsheet
--- =========================
-CREATE TABLE Protocols (
-    ProtocolID   INT PRIMARY KEY AUTO_INCREMENT,
-    Name         VARCHAR(20)  NOT NULL,
-    LayerNum     INT          NOT NULL,
-    Port         VARCHAR(20),
-    Transport    VARCHAR(10),
-    Description  TEXT,
-    UseCase      VARCHAR(255)
+CREATE TABLE Courses (
+    CourseID INT PRIMARY KEY AUTO_INCREMENT,
+    CourseCode VARCHAR(20) UNIQUE NOT NULL,
+    CourseName VARCHAR(100) NOT NULL,
+    Department VARCHAR(50) DEFAULT 'Computer Science',
+    Credits INT,
+    Semester VARCHAR(20),
+    InstructorName VARCHAR(100)
 );
 
-INSERT INTO Protocols (Name, LayerNum, Port, Transport, Description, UseCase) VALUES
-('HTTP',      7, '80',     'TCP', 'HyperText Transfer Protocol — unencrypted web pages.',          'Web browsing (insecure)'),
-('HTTPS',     7, '443',    'TCP', 'HTTP over TLS — encrypted web traffic.',                       'Secure web browsing'),
-('DNS',       7, '53',     'UDP', 'Domain Name System — translates domain names to IP addresses.','Resolving google.com → 142.250.190.46'),
-('FTP',       7, '21',     'TCP', 'File Transfer Protocol — uploads and downloads files.',        'File transfers'),
-('SSH',       7, '22',     'TCP', 'Secure Shell — encrypted remote command-line access.',         'Remote server admin'),
-('Telnet',    7, '23',     'TCP', 'Unencrypted remote terminal — legacy, insecure.',              'Legacy device access'),
-('SMTP',      7, '25',     'TCP', 'Simple Mail Transfer — sends email.',                          'Sending mail'),
-('POP3',      7, '110',    'TCP', 'Post Office Protocol — downloads email.',                      'Receiving mail'),
-('IMAP',      7, '143',    'TCP', 'Internet Message Access Protocol — manages mail on server.',   'Modern mail clients'),
-('DHCP',      7, '67/68',  'UDP', 'Dynamic Host Configuration — assigns IPs automatically.',      'Auto-IP on Wi-Fi'),
-('TLS',       6, '—',      '—',   'Transport Layer Security — encrypts data in transit.',         'HTTPS, secure email'),
-('TCP',       4, '—',      '—',   'Reliable, connection-oriented, with retransmission.',          'Web, email, file transfer'),
-('UDP',       4, '—',      '—',   'Fast, connectionless, no delivery guarantees.',                'Streaming, gaming, DNS'),
-('IP',        3, '—',      '—',   'Internet Protocol — logical addressing and routing.',          'All internet traffic'),
-('ICMP',      3, '—',      '—',   'Used by ping and traceroute for diagnostics.',                 'Network troubleshooting'),
-('ARP',       2, '—',      '—',   'Address Resolution Protocol — IP to MAC mapping.',             'Local network discovery'),
-('Ethernet',  2, '—',      '—',   'Most common Layer 2 protocol for wired LANs.',                 'All wired networks'),
-('Wi-Fi',     2, '—',      '—',   'IEEE 802.11 — wireless Layer 2.',                              'Wireless networks');
-
--- =========================
--- Packet Capture Log
--- =========================
-CREATE TABLE Packets (
-    PacketID         INT PRIMARY KEY AUTO_INCREMENT,
-    AppProtocol      VARCHAR(20)  DEFAULT 'HTTP',
-    HttpMethod       VARCHAR(10)  DEFAULT 'GET',
-    UrlPath          VARCHAR(255) DEFAULT '/',
-    UserAgent        VARCHAR(120) DEFAULT 'Mozilla/5.0',
-    TransportProto   VARCHAR(10)  DEFAULT 'TCP',
-    SourcePort       INT          DEFAULT 0,
-    DestPort         INT          DEFAULT 80,
-    TcpFlags         VARCHAR(20)  DEFAULT 'PSH,ACK',
-    SourceIP         VARCHAR(45),
-    DestIP           VARCHAR(45),
-    TTL              INT          DEFAULT 64,
-    IpVersion        INT          DEFAULT 4,
-    SourceMAC        VARCHAR(17),
-    DestMAC          VARCHAR(17),
-    EtherType        VARCHAR(10)  DEFAULT '0x0800',
-    Medium           VARCHAR(20)  DEFAULT 'Copper',
-    LinkSpeed        VARCHAR(20)  DEFAULT '1 Gbps',
-    PacketSize       INT          DEFAULT 64,
-    Direction        VARCHAR(10)  DEFAULT 'Outbound',
-    Status           VARCHAR(20)  DEFAULT 'Delivered',
-    Notes            VARCHAR(255),
-    CapturedAt       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE Enrollments (
+    EnrollmentID INT PRIMARY KEY AUTO_INCREMENT,
+    StudentID INT NOT NULL,
+    CourseID INT NOT NULL,
+    EnrollmentDate DATE DEFAULT CURRENT_DATE,
+    Status VARCHAR(20) DEFAULT 'Active',
+    FOREIGN KEY (StudentID) REFERENCES Students(StudentID) ON DELETE CASCADE,
+    FOREIGN KEY (CourseID) REFERENCES Courses(CourseID) ON DELETE CASCADE,
+    UNIQUE KEY unique_enrollment (StudentID, CourseID)
 );
 
-CREATE INDEX idx_pkt_time ON Packets(CapturedAt);
-CREATE INDEX idx_pkt_src  ON Packets(SourceIP);
-CREATE INDEX idx_pkt_pro  ON Packets(AppProtocol);
-
--- =========================
--- Quiz Questions
--- =========================
-CREATE TABLE QuizQuestions (
-    QuestionID    INT PRIMARY KEY AUTO_INCREMENT,
-    Question      TEXT NOT NULL,
-    OptionA       VARCHAR(255),
-    OptionB       VARCHAR(255),
-    OptionC       VARCHAR(255),
-    OptionD       VARCHAR(255),
-    CorrectAnswer CHAR(1),
-    Explanation   TEXT,
-    Difficulty    VARCHAR(10) DEFAULT 'Easy',
-    Topic         VARCHAR(50)
+CREATE TABLE Grades (
+    GradeID INT PRIMARY KEY AUTO_INCREMENT,
+    EnrollmentID INT NOT NULL,
+    MidtermGrade DECIMAL(5,2),
+    FinalGrade DECIMAL(5,2),
+    AssignmentGrade DECIMAL(5,2),
+    TotalGrade DECIMAL(5,2),
+    LetterGrade CHAR(2),
+    GPA DECIMAL(3,2),
+    FOREIGN KEY (EnrollmentID) REFERENCES Enrollments(EnrollmentID) ON DELETE CASCADE
 );
 
-INSERT INTO QuizQuestions (Question, OptionA, OptionB, OptionC, OptionD, CorrectAnswer, Explanation, Difficulty, Topic) VALUES
-('Which OSI layer is responsible for logical addressing (IP)?', 'Layer 2 (Data Link)', 'Layer 3 (Network)', 'Layer 4 (Transport)', 'Layer 7 (Application)', 'B', 'The Network Layer (L3) handles logical addressing using IP addresses and routing.', 'Easy', 'OSI Layers'),
-('Which protocol uses port 443?', 'HTTP', 'FTP', 'HTTPS', 'SSH', 'C', 'HTTPS uses TCP port 443 for encrypted web traffic.', 'Easy', 'Ports'),
-('What is the data unit at the Transport Layer?', 'Frame', 'Packet', 'Segment', 'Bits', 'C', 'Layer 4 calls its data unit a Segment (TCP) or Datagram (UDP).', 'Medium', 'OSI Layers'),
-('Which protocol is connectionless?', 'TCP', 'UDP', 'HTTP', 'FTP', 'B', 'UDP is connectionless and offers no delivery guarantees, unlike TCP.', 'Easy', 'Transport'),
-('A MAC address operates at which layer?', 'Layer 1', 'Layer 2', 'Layer 3', 'Layer 4', 'B', 'MAC addresses are physical addresses at Layer 2 (Data Link).', 'Easy', 'OSI Layers'),
-('What does TTL stand for in IP?', 'Total Transmission Length', 'Time To Live', 'Transport Type Layer', 'Trace To Localhost', 'B', 'TTL = Time To Live. It limits how many hops a packet can travel.', 'Medium', 'Network'),
-('Which protocol is used by ping?', 'TCP', 'UDP', 'ICMP', 'ARP', 'C', 'Ping uses ICMP Echo Request/Reply messages for diagnostics.', 'Easy', 'Network'),
-('What does DHCP do?', 'Resolves domain names', 'Assigns IP addresses automatically', 'Encrypts traffic', 'Routes packets', 'B', 'DHCP (Dynamic Host Configuration Protocol) auto-assigns IPs to devices.', 'Easy', 'Application'),
-('Which device operates at Layer 3?', 'Hub', 'Switch', 'Router', 'Repeater', 'C', 'Routers operate at Layer 3 — they read IP addresses and route packets.', 'Easy', 'Devices'),
-('A subnet mask of /24 means how many host bits?', '6', '8', '10', '24', 'B', '/24 = 24 network bits, leaving 32-24 = 8 host bits (256 addresses).', 'Hard', 'Subnetting'),
-('Which OSI layer encrypts data?', 'Layer 4', 'Layer 5', 'Layer 6', 'Layer 7', 'C', 'Layer 6 (Presentation) handles encryption, encoding, and compression.', 'Medium', 'OSI Layers'),
-('What is the well-known port for SMTP?', '21', '22', '25', '53', 'C', 'SMTP uses TCP port 25 for sending mail.', 'Easy', 'Ports'),
-('TCP three-way handshake order is:', 'SYN, ACK, FIN', 'SYN, SYN-ACK, ACK', 'ACK, SYN, FIN', 'FIN, ACK, SYN', 'B', 'TCP handshake: client sends SYN, server replies SYN-ACK, client confirms with ACK.', 'Medium', 'Transport'),
-('Which protocol maps IP to MAC?', 'DNS', 'DHCP', 'ARP', 'ICMP', 'C', 'ARP (Address Resolution Protocol) maps IP addresses to MAC addresses on a LAN.', 'Medium', 'Network'),
-('Maximum size of an IPv4 address?', '16 bits', '32 bits', '64 bits', '128 bits', 'B', 'IPv4 is 32 bits (4 octets). IPv6 is 128 bits.', 'Easy', 'Network');
+CREATE TABLE Attendance (
+    AttendanceID INT PRIMARY KEY AUTO_INCREMENT,
+    EnrollmentID INT NOT NULL,
+    AttendanceDate DATE NOT NULL,
+    Status VARCHAR(20) DEFAULT 'Present',
+    Notes VARCHAR(200),
+    FOREIGN KEY (EnrollmentID) REFERENCES Enrollments(EnrollmentID) ON DELETE CASCADE
+);
 
--- =========================
--- Sample packets
--- =========================
-INSERT INTO Packets
-(AppProtocol, HttpMethod, UrlPath, TransportProto, SourcePort, DestPort, TcpFlags, SourceIP, DestIP, SourceMAC, DestMAC, PacketSize, Direction, Status, Notes, CapturedAt) VALUES
-('HTTPS','GET','/api/stats','TCP',52431,443,'SYN','192.168.10.45','142.250.190.46','00:1A:2B:3C:4D:5E','00:50:56:8C:17:91',74,'Outbound','Delivered','Initial handshake', NOW() - INTERVAL 30 MINUTE),
-('HTTPS','GET','/api/stats','TCP',443,52431,'SYN,ACK','142.250.190.46','192.168.10.45','00:50:56:8C:17:91','00:1A:2B:3C:4D:5E',74,'Inbound','Delivered','Handshake response', NOW() - INTERVAL 30 MINUTE),
-('DNS', 'QUERY','google.com','UDP',58220,53,'—','192.168.10.45','8.8.8.8','00:1A:2B:3C:4D:5E','00:1A:2B:FF:00:01',82,'Outbound','Delivered','DNS lookup', NOW() - INTERVAL 25 MINUTE),
-('HTTP','POST','/api/login','TCP',52440,80,'PSH,ACK','10.0.0.12','172.16.1.10','AA:BB:CC:11:22:33','00:50:56:8C:17:91',512,'Outbound','Delivered','Login request', NOW() - INTERVAL 15 MINUTE),
-('HTTP','GET','/api/users','TCP',52441,80,'ACK','10.0.0.12','172.16.1.10','AA:BB:CC:11:22:33','00:50:56:8C:17:91',1420,'Inbound','Delivered','Data response', NOW() - INTERVAL 12 MINUTE),
-('ICMP','ECHO','ping','—',0,0,'—','192.168.10.45','8.8.8.8','00:1A:2B:3C:4D:5E','00:1A:2B:FF:00:01',64,'Outbound','Delivered','Ping request', NOW() - INTERVAL 8 MINUTE),
-('SSH','SYN','/connect','TCP',54331,22,'SYN','192.168.1.100','192.168.1.10','00:1A:2B:3C:4D:5E','00:1A:2B:11:22:33',60,'Outbound','Delivered','SSH connection', NOW() - INTERVAL 7 MINUTE),
-('FTP','GET','/files/report.pdf','TCP',55021,21,'PSH,ACK','192.168.1.50','192.168.1.20','AA:BB:CC:DD:EE:FF','00:50:56:8C:17:91',1500,'Outbound','Delivered','File download', NOW() - INTERVAL 5 MINUTE),
-('SMTP','SEND','/mail','TCP',56012,25,'PSH','10.0.0.55','172.217.16.46','11:22:33:44:55:66','00:1A:2B:33:44:55',890,'Outbound','Delivered','Email sent', NOW() - INTERVAL 3 MINUTE),
-('ICMP','REPLY','ping','—',0,0,'—','8.8.8.8','192.168.10.45','00:1A:2B:FF:00:01','00:1A:2B:3C:4D:5E',64,'Inbound','Delivered','Pong reply', NOW() - INTERVAL 2 MINUTE);
+CREATE TABLE Users (
+    UserID INT PRIMARY KEY AUTO_INCREMENT,
+    Username VARCHAR(50) UNIQUE NOT NULL,
+    Password VARCHAR(100) NOT NULL,
+    Role VARCHAR(20) NOT NULL,
+    Email VARCHAR(100),
+    IPAddress VARCHAR(45) DEFAULT NULL,   
+    RegistrationDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CreatedDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE ActivityLog (
+    LogID         INT PRIMARY KEY AUTO_INCREMENT,
+    Username      VARCHAR(50)  DEFAULT 'Anonymous',
+    UserRole      VARCHAR(20)  DEFAULT 'Guest',
+    Action           VARCHAR(100) NOT NULL,
+    Category      VARCHAR(30)  DEFAULT 'General',
+    TargetType    VARCHAR(50)  DEFAULT NULL,
+    TargetID      VARCHAR(50)  DEFAULT NULL,
+    IPAddress     VARCHAR(45)  DEFAULT NULL,
+    UserAgent     VARCHAR(255) DEFAULT NULL,
+    Method        VARCHAR(10)  DEFAULT NULL,
+    StatusCode    INT          DEFAULT 200,
+    Details       TEXT         DEFAULT NULL,
+    CreatedAt     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE INDEX idx_student_ip ON Students(IPAddress);
+CREATE INDEX idx_user_ip ON Users(IPAddress);
+CREATE INDEX idx_enrollment_status ON Enrollments(Status);
+CREATE INDEX idx_grade_gpa ON Grades(GPA);
+CREATE INDEX idx_log_user      ON ActivityLog(Username);
+CREATE INDEX idx_log_ip        ON ActivityLog(IPAddress);
+CREATE INDEX idx_log_category  ON ActivityLog(Category);
+CREATE INDEX idx_log_date      ON ActivityLog(CreatedAt);
+
+INSERT INTO Students (Name, Email, Phone, Department, Year, DateOfBirth, Address, IPAddress) VALUES
+('Ahmed Mohamed Ali', 'ahmed.ali@cs.edu', '01012345678', 'Computer Science', 2, '2003-05-15', 'Cairo, Egypt', '192.168.1.101'),
+('Sara Hassan Ibrahim', 'sara.hassan@cs.edu', '01023456789', 'Computer Science', 1, '2004-08-22', 'Giza, Egypt', '192.168.1.102'),
+('Omar Khaled Mahmoud', 'omar.khaled@cs.edu', '01034567890', 'Computer Science', 1, '2004-12-10', 'Cairo, Egypt', '192.168.1.103'),
+('Fatma Ahmed Said', 'fatma.ahmed@cs.edu', '01045678901', 'Computer Science', 3, '2002-03-18', 'Alexandria, Egypt', '192.168.1.104'),
+('Mohamed Youssef Abdullah', 'mohamed.youssef@cs.edu', '01056789012', 'Computer Science', 2, '2003-07-25', 'Giza, Egypt', '192.168.1.105'),
+('Mariam Sami Hassan', 'mariam.sami@cs.edu', '01067890123', 'Computer Science', 2, '2003-11-30', 'Cairo, Egypt', '192.168.1.106'),
+('Youssef Mahmoud Ahmed', 'youssef.mahmoud@cs.edu', '01078901234', 'Computer Science', 3, '2002-01-14', 'Giza, Egypt', '192.168.1.107'),
+('Noureldeen Tarek', 'noureldeen.tarek@cs.edu', '01089012345', 'Computer Science', 1, '2004-09-05', 'Cairo, Egypt', '192.168.1.108'),
+('Yasmin Adel Fahmy', 'yasmin.adel@cs.edu', '01090123456', 'Computer Science', 2, '2003-04-20', 'Giza, Egypt', '192.168.1.109'),
+('Karim Hossam Eldin', 'karim.hossam@cs.edu', '01001234567', 'Computer Science', 3, '2002-06-12', 'Cairo, Egypt', '192.168.1.110'),
+('Dina Salah Abdelaziz', 'dina.salah@cs.edu', '01112345678', 'Computer Science', 1, '2004-10-08', 'Alexandria, Egypt', '192.168.1.111'),
+('Hossam Eldin Ramy', 'hossam.ramy@cs.edu', '01123456789', 'Computer Science', 2, '2003-02-28', 'Cairo, Egypt', '192.168.1.112'),
+('Nada Walid Mohamed', 'nada.walid@cs.edu', '01134567890', 'Computer Science', 3, '2002-12-03', 'Giza, Egypt', '192.168.1.113'),
+('Tarek Faisal Ahmed', 'tarek.faisal@cs.edu', '01145678901', 'Computer Science', 2, '2003-08-17', 'Cairo, Egypt', '192.168.1.114'),
+('Lamiaa Essam Mahmoud', 'lamiaa.essam@cs.edu', '01156789012', 'Computer Science', 1, '2004-05-25', 'Alexandria, Egypt', '192.168.1.115'),
+('Abdelrahman Samir', 'abdelrahman.samir@cs.edu', '01167890123', 'Computer Science', 3, '2002-11-19', 'Giza, Egypt', '192.168.1.116'),
+('Heba Maged Ali', 'heba.maged@cs.edu', '01178901234', 'Computer Science', 2, '2003-03-07', 'Cairo, Egypt', '192.168.1.117'),
+('Amir Mohamed Saad', 'amir.mohamed@cs.edu', '01189012345', 'Computer Science', 1, '2004-07-14', 'Giza, Egypt', '192.168.1.118'),
+('Rana Khaled Hassan', 'rana.khaled@cs.edu', '01190123456', 'Computer Science', 2, '2003-09-22', 'Cairo, Egypt', '192.168.1.119'),
+('Ziad Ahmed Farouk', 'ziad.ahmed@cs.edu', '01201234567', 'Computer Science', 3, '2002-04-30', 'Alexandria, Egypt', '192.168.1.120'),
+('Shimaa Hussein Ali', 'shimaa.hussein@cs.edu', '01212345678', 'Computer Science', 1, '2004-11-11', 'Cairo, Egypt', '192.168.1.121'),
+('Bilal Omar Sayed', 'bilal.omar@cs.edu', '01223456789', 'Computer Science', 2, '2003-01-26', 'Giza, Egypt', '192.168.1.122'),
+('Iman Sami Mohamed', 'iman.sami@cs.edu', '01234567890', 'Computer Science', 3, '2002-08-09', 'Cairo, Egypt', '192.168.1.123'),
+('Adam Mahmoud Reda', 'adam.mahmoud@cs.edu', '01245678901', 'Computer Science', 1, '2004-06-16', 'Giza, Egypt', '192.168.1.124'),
+('Salma Ahmed Hassan', 'salma.ahmed@cs.edu', '01256789012', 'Computer Science', 2, '2003-10-23', 'Alexandria, Egypt', '192.168.1.125'),
+('Moaaz Youssef Ali', 'moaaz.youssef@cs.edu', '01267890123', 'Computer Science', 3, '2002-02-05', 'Cairo, Egypt', '192.168.1.126'),
+('Jana Mohamed Samir', 'jana.mohamed@cs.edu', '01278901234', 'Computer Science', 1, '2004-12-18', 'Giza, Egypt', '192.168.1.127'),
+('Hamza Tarek Fahmy', 'hamza.tarek@cs.edu', '01289012345', 'Computer Science', 2, '2003-05-29', 'Cairo, Egypt', '192.168.1.128'),
+('Ruqaya Hossam Adel', 'ruqaya.hossam@cs.edu', '01290123456', 'Computer Science', 3, '2002-09-13', 'Alexandria, Egypt', '192.168.1.129'),
+('Oday Walid Salah', 'oday.walid@cs.edu', '01301234567', 'Computer Science', 2, '2003-03-21', 'Cairo, Egypt', '192.168.1.130');
+
+
+INSERT INTO Courses (CourseCode, CourseName, Department, Credits, Semester, InstructorName) VALUES
+('CS101', 'Introduction to Programming', 'Computer Science', 3, 'Fall 2024', 'Dr. Mohamed Abdelrahman'),
+('CS102', 'Data Structures', 'Computer Science', 4, 'Fall 2024', 'Dr. Ahmed Hassan'),
+('CS201', 'Database Systems', 'Computer Science', 3, 'Spring 2025', 'Dr. Sara Mahmoud'),
+('CS202', 'Web Development', 'Computer Science', 3, 'Spring 2025', 'Dr. Khaled Youssef'),
+('CS203', 'Object-Oriented Programming', 'Computer Science', 4, 'Fall 2024', 'Dr. Fatma Ahmed'),
+('CS301', 'Artificial Intelligence', 'Computer Science', 4, 'Fall 2024', 'Dr. Iman Sami'),
+('CS302', 'Machine Learning', 'Computer Science', 3, 'Spring 2025', 'Dr. Omar Suleiman'),
+('CS303', 'Computer Networks', 'Computer Science', 3, 'Fall 2024', 'Dr. Nour Elhoda'),
+('CS304', 'Operating Systems', 'Computer Science', 4, 'Spring 2025', 'Dr. Hossam Eldin'),
+('CS305', 'Software Engineering', 'Computer Science', 3, 'Fall 2024', 'Dr. Ramy Salah'),
+('CS401', 'Computer Graphics', 'Computer Science', 3, 'Spring 2025', 'Dr. Dina Walid'),
+('CS402', 'Cybersecurity', 'Computer Science', 4, 'Fall 2024', 'Dr. Tarek Faisal'),
+('CS403', 'Cloud Computing', 'Computer Science', 3, 'Spring 2025', 'Dr. Lamiaa Essam'),
+('CS404', 'Mobile App Development', 'Computer Science', 3, 'Fall 2024', 'Dr. Abdelrahman Samir'),
+('CS405', 'Data Science', 'Computer Science', 4, 'Spring 2025', 'Dr. Heba Maged');
+
+INSERT INTO Enrollments (StudentID, CourseID, EnrollmentDate, Status) VALUES
+(1, 1, '2024-09-01', 'Active'),
+(1, 2, '2024-09-01', 'Active'),
+(2, 1, '2024-09-01', 'Active'),
+(2, 3, '2024-09-01', 'Active'),
+(3, 1, '2024-09-01', 'Active'),
+(3, 2, '2024-09-01', 'Active'),
+(4, 6, '2024-09-01', 'Active'),
+(4, 7, '2024-09-01', 'Active'),
+(5, 2, '2024-09-01', 'Active'),
+(5, 3, '2024-09-01', 'Active'),
+(6, 1, '2024-09-01', 'Active'),
+(6, 2, '2024-09-01', 'Active'),
+(7, 6, '2024-09-01', 'Active'),
+(7, 8, '2024-09-01', 'Active'),
+(8, 1, '2024-09-01', 'Active'),
+(8, 5, '2024-09-01', 'Active'),
+(9, 2, '2024-09-01', 'Active'),
+(9, 3, '2024-09-01', 'Active'),
+(10, 6, '2024-09-01', 'Active'),
+(10, 7, '2024-09-01', 'Active');
+
+
+INSERT INTO Grades (EnrollmentID, MidtermGrade, FinalGrade, AssignmentGrade, TotalGrade, LetterGrade, GPA) VALUES
+(1, 85.5, 88.0, 90.0, 87.83, 'A-', 3.67),
+(2, 92.0, 95.0, 93.0, 93.33, 'A', 4.00),
+(3, 78.0, 82.5, 85.0, 81.83, 'B+', 3.33),
+(4, 88.0, 90.0, 87.5, 88.50, 'A-', 3.67),
+(5, 72.0, 75.0, 78.0, 75.00, 'B', 3.00),
+(6, 95.0, 97.0, 96.0, 96.00, 'A+', 4.00),
+(7, 80.0, 83.0, 85.0, 82.67, 'B+', 3.33),
+(8, 88.5, 91.0, 89.0, 89.50, 'A-', 3.67),
+(9, 76.0, 79.0, 80.0, 78.33, 'B', 3.00),
+(10, 93.0, 96.0, 94.5, 94.50, 'A', 4.00),
+(11, 84.0, 87.0, 86.0, 85.67, 'A-', 3.67),
+(12, 90.0, 92.5, 91.0, 91.17, 'A', 4.00),
+(13, 77.5, 80.0, 82.0, 79.83, 'B+', 3.33),
+(14, 86.0, 89.0, 88.0, 87.67, 'A-', 3.67),
+(15, 91.0, 94.0, 92.0, 92.33, 'A', 4.00),
+(16, 75.0, 78.0, 80.0, 77.67, 'B', 3.00),
+(17, 89.0, 91.5, 90.0, 90.17, 'A', 4.00),
+(18, 82.0, 85.0, 84.0, 83.67, 'B+', 3.33),
+(19, 94.0, 96.5, 95.0, 95.17, 'A+', 4.00),
+(20, 87.0, 90.0, 88.5, 88.50, 'A-', 3.67);
+
+
+INSERT INTO Attendance (EnrollmentID, AttendanceDate, Status, Notes) VALUES
+(1, '2024-09-01', 'Present', NULL),
+(1, '2024-09-03', 'Present', NULL),
+(1, '2024-09-05', 'Present', NULL),
+(2, '2024-09-01', 'Present', NULL),
+(2, '2024-09-03', 'Absent', 'Medical excuse'),
+(2, '2024-09-05', 'Present', NULL),
+(3, '2024-09-01', 'Present', NULL),
+(3, '2024-09-03', 'Present', NULL),
+(3, '2024-09-05', 'Late', 'Late 10 minutes'),
+(4, '2024-09-01', 'Present', NULL),
+(4, '2024-09-03', 'Present', NULL),
+(4, '2024-09-05', 'Present', NULL),
+(5, '2024-09-01', 'Absent', 'No excuse'),
+(5, '2024-09-03', 'Present', NULL),
+(5, '2024-09-05', 'Present', NULL),
+(6, '2024-09-01', 'Present', NULL),
+(6, '2024-09-03', 'Present', NULL),
+(6, '2024-09-05', 'Present', NULL),
+(7, '2024-09-01', 'Present', NULL),
+(7, '2024-09-03', 'Present', NULL);
+
+
+INSERT INTO Users (Username, Password, Role, Email, IPAddress, RegistrationDate) VALUES
+('admin', 'admin123', 'Admin', 'admin@cs.edu', '192.168.1.1', '2024-01-15 09:00:00'),
+('registrar', 'reg123', 'Registrar', 'registrar@cs.edu', '192.168.1.2', '2024-01-16 10:30:00'),
+('dr.mohamed', 'teach123', 'Teacher', 'dr.mohamed@cs.edu', '192.168.1.50', '2024-01-20 11:15:00'),
+('dr.ahmed', 'teach123', 'Teacher', 'dr.ahmed@cs.edu', '192.168.1.51', '2024-01-21 09:45:00'),
+('dr.sara', 'teach123', 'Teacher', 'dr.sara@cs.edu', '192.168.1.52', '2024-01-22 14:20:00'),
+('staff1', 'staff123', 'Staff', 'staff1@cs.edu', '192.168.1.100', '2024-02-01 08:00:00'),
+('staff2', 'staff123', 'Staff', 'staff2@cs.edu', '192.168.1.101', '2024-02-02 09:30:00');
+
+
+INSERT INTO ActivityLog (Username, UserRole, Action, Category, IPAddress, Method, Details, CreatedAt) VALUES
+('admin',     'Admin',     'System initialized',  'System',   '192.168.1.1',   'GET',  'Database setup complete', NOW() - INTERVAL 2 DAY),
+('admin',     'Admin',     'User logged in',      'Auth',     '192.168.1.1',   'POST', 'Successful login',        NOW() - INTERVAL 1 DAY),
+('registrar', 'Registrar', 'User logged in',      'Auth',     '192.168.1.2',   'POST', 'Successful login',        NOW() - INTERVAL 12 HOUR),
+('admin',     'Admin',     'Viewed dashboard',    'View',     '192.168.1.1',   'GET',  'Dashboard accessed',      NOW() - INTERVAL 6 HOUR),
+('staff1',    'Staff',     'User registered',     'Auth',     '192.168.1.100', 'POST', 'New account created',     NOW() - INTERVAL 4 HOUR),
+('admin',     'Admin',     'Added student',       'Create',   '192.168.1.1',   'POST', 'Student record created',  NOW() - INTERVAL 2 HOUR),
+('dr.mohamed','Teacher',   'User logged in',      'Auth',     '192.168.1.50',  'POST', 'Successful login',        NOW() - INTERVAL 1 HOUR),
+('dr.mohamed','Teacher',   'Recorded attendance', 'Create',   '192.168.1.50',  'POST', 'Attendance marked',       NOW() - INTERVAL 30 MINUTE),
+('admin',     'Admin',     'Viewed network map',  'Network',  '192.168.1.1',   'GET',  'Network monitoring',      NOW() - INTERVAL 10 MINUTE),
+('staff1',    'Staff',     'Failed login',        'Security', '192.168.1.105', 'POST', 'Invalid credentials',     NOW() - INTERVAL 5 MINUTE);
+
+SELECT COUNT(*) AS TotalStudents FROM Students;
+
+SELECT StudentID, Name, Department, Year, IPAddress FROM Students LIMIT 5;
+
+SELECT Username, Role, Email, IPAddress, RegistrationDate FROM Users;
+
+
